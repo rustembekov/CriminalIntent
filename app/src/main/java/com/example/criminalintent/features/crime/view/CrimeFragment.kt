@@ -15,6 +15,7 @@ import androidx.annotation.RequiresApi
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import com.example.criminalintent.R
+import com.example.criminalintent.features.blacklist.view.CrimeListFragment
 import com.example.criminalintent.features.crime.viewModel.CrimeDetailViewModel
 import com.example.criminalintent.model.Crime
 import com.example.criminalintent.utilities.DatePickerFragment
@@ -76,7 +77,6 @@ class CrimeFragment : Fragment() {
 
     override fun onStart() {
         super.onStart()
-
         dateButton.setOnClickListener {
             DatePickerFragment.newInstance(crime.date).show(parentFragmentManager, Args.DIALOG_DATE)
         }
@@ -96,6 +96,12 @@ class CrimeFragment : Fragment() {
         super.onStop()
         crimeDetailViewModel.saveCrime(crime)
     }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        parentFragmentManager.beginTransaction()
+            .replace(R.id.fragment_container, CrimeListFragment.newInstance())
+            .commit()    }
 
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun setFragmentResultListeners() {
