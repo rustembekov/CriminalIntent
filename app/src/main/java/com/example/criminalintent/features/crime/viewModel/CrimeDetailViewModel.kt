@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.switchMap
 import com.example.criminalintent.model.Crime
 import com.example.criminalintent.repository.CrimeRepository
+import java.io.File
 import java.util.UUID
 
 class CrimeDetailViewModel() : ViewModel() {
@@ -22,5 +23,9 @@ class CrimeDetailViewModel() : ViewModel() {
 
     fun saveCrime(crime: Crime) {
         crimeRepository.updateCrime(crime = crime)
+    }
+
+    fun getPhotoCrime(crime: Crime): File {
+        return crimeRepository.getPhotoFile(crime)
     }
 }
