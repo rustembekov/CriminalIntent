@@ -4,6 +4,8 @@ import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ResolveInfo
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -12,6 +14,7 @@ import android.provider.MediaStore
 import android.text.Editable
 import android.text.TextWatcher
 import android.text.format.DateFormat
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -59,6 +62,16 @@ class CrimeFragment : Fragment() {
             }
         }
 
+    private val cameraPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                launchCamera()
+            } else {
+                Toast.makeText(requireContext(), "Camera permission is required", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+
     private val pickContactLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -81,6 +94,8 @@ class CrimeFragment : Fragment() {
             }
         }
 
+
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -93,6 +108,7 @@ class CrimeFragment : Fragment() {
         }
     }
 
+
     companion object {
         private const val DATE_FORMAT = "EEE, MMM dd"
 
@@ -104,6 +120,8 @@ class CrimeFragment : Fragment() {
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.d("CRIME", "onCreate!")
+
         crime = Crime()
         arguments?.getSerializable(Args.CRIME_ID, UUID::class.java)
             ?.let { crimeDetailViewModel.loadCrime(it) }
@@ -112,6 +130,8 @@ class CrimeFragment : Fragment() {
 
     override fun onDetach() {
         super.onDetach()
+        Log.d("CRIME", "onDetachView!")
+
         requireActivity().revokeUriPermission(photoUri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
     }
 
@@ -120,6 +140,8 @@ class CrimeFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
+        Log.d("CRIME", "onCreateView!")
+
         return inflater.inflate(R.layout.fragment_crime, container, false).apply {
             titleField = findViewById(R.id.crime_title)
             dateButton = findViewById(R.id.crime_date)
@@ -134,9 +156,10 @@ class CrimeFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
         crimeDetailViewModel.crimeLiveData.observe(viewLifecycleOwner) {
             it?.let {
-                crime = it;
+                crime = it
                 photoFile = crimeDetailViewModel.getPhotoCrime(it)
                 photoUri = FileProvider.getUriForFile(
                     requireActivity(),
@@ -144,12 +167,16 @@ class CrimeFragment : Fragment() {
                     photoFile
                 )
                 updateUI()
+                updatePhotoView()  // Ensure the photo is set
             }
         }
     }
 
+
     override fun onStart() {
         super.onStart()
+        Log.d("CRIME", "onStart!")
+
         setupUIListeners()
     }
 
@@ -159,53 +186,109 @@ class CrimeFragment : Fragment() {
     }
 
     private fun setupUIListeners() {
+        setupDateButton()
+        setupTitleFieldListener()
+        setupSolvedCheckBox()
+        setupReportButton()
+        setupSuspectButton()
+        setupCallButton()
+        setupPhotoButton()
+        setupPhotoView()
+    }
+
+    private fun setupDateButton() {
         dateButton.setOnClickListener {
             DatePickerFragment.newInstance(crime.date).show(parentFragmentManager, Args.DIALOG_DATE)
         }
+    }
 
+    private fun setupTitleFieldListener() {
         titleField.addTextChangedListener(object : SimpleTextWatcher() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 crime.title = s.toString()
             }
         })
+    }
 
-        solvedCheckBox.setOnCheckedChangeListener { _, isChecked -> crime.isSolved = isChecked }
+    private fun setupSolvedCheckBox() {
+        solvedCheckBox.setOnCheckedChangeListener { _, isChecked ->
+            crime.isSolved = isChecked
+        }
+    }
+
+    private fun setupReportButton() {
         reportButton.setOnClickListener { sendCrimeReport() }
-        suspectButton.setOnClickListener { pickContactLauncher.launch(null) }
+    }
+
+    private fun setupSuspectButton() {
+        suspectButton.setOnClickListener {
+            val pickContactIntent = Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI)
+            pickContactLauncher.launch(pickContactIntent)
+        }
+    }
+
+    private fun setupCallButton() {
         callButton.setOnClickListener {
             if (ContextCompat.checkSelfPermission(
                     requireContext(),
                     Manifest.permission.READ_CONTACTS
                 ) == PackageManager.PERMISSION_GRANTED
-            )
-                callContactLauncher.launch(null)
-            else {
+            ) {
+                val pickContactIntent = Intent(Intent.ACTION_PICK, ContactsContract.Contacts.CONTENT_URI)
+                callContactLauncher.launch(pickContactIntent)
+            } else {
                 requestReadContactsPermission()
             }
         }
-        photoButton.apply {
-            val captureImageIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-            val resolvedActivity = captureImageIntent.resolveActivity(requireActivity().packageManager)
-            if (resolvedActivity == null) {
-                isEnabled = false
-            }
+    }
 
-            photoButton.setOnClickListener {
-                captureImageIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
-                val cameraActivities = requireActivity().packageManager.queryIntentActivities(
-                    captureImageIntent, PackageManager.MATCH_DEFAULT_ONLY
-                )
-                for(cameraActivity in cameraActivities) {
-                    requireActivity().grantUriPermission(
-                        cameraActivity.activityInfo.packageName,
-                        photoUri,
-                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    )
+    private fun setupPhotoButton() {
+        photoButton.apply {
+            if(!checkIfDeviceHasCamera())
+                isEnabled = false
+
+            setOnClickListener {
+                if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    launchCamera()
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
-                captureImageLauncher.launch(captureImageIntent)
+
             }
         }
     }
+    private fun checkIfDeviceHasCamera(): Boolean {
+        return requireActivity().packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
+    }
+
+
+    private fun grantUriPermissions(intent: Intent) {
+        val cameraActivities = requireActivity().packageManager.queryIntentActivities(
+            intent, PackageManager.MATCH_DEFAULT_ONLY
+        )
+        for (cameraActivity in cameraActivities) {
+            requireActivity().grantUriPermission(
+                cameraActivity.activityInfo.packageName,
+                photoUri,
+                Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+        }
+    }
+
+    private fun setupPhotoView() {
+        photoView.viewTreeObserver.addOnGlobalLayoutListener {
+            val drawable = photoView.drawable
+            if (drawable is BitmapDrawable && drawable.bitmap != null) {
+                Log.d("Drawable.bitmap", "setupPhotoView")
+                photoView.setOnClickListener {
+                    FullScreenImageDialogFragment.newInstance(photoUri)
+                        .show(parentFragmentManager, Args.DIALOG_IMAGE_FULLSCREEN)
+                }
+            }
+        }
+
+    }
+
     private fun handleCapturedImage() {
         requireActivity().revokeUriPermission(photoUri, Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
         updatePhotoView()
@@ -281,7 +364,6 @@ class CrimeFragment : Fragment() {
         titleField.setText(crime.title)
         dateButton.text = crime.date.toString()
         solvedCheckBox.isChecked = crime.isSolved
-        updatePhotoView()
         if (crime.suspect.isNotEmpty()) {
             suspectButton.text = crime.suspect
         }
@@ -292,9 +374,20 @@ class CrimeFragment : Fragment() {
         if (photoFile.exists()) {
             val bitmap = getScaledBitmap(photoFile.path, requireActivity())
             photoView.setImageBitmap(bitmap)
+            Log.d("Photo.bitmap", "photoView: ${photoView.drawable.toString()}")
+
         } else {
+            Log.d("Photo.bitmap", "null")
             photoView.setImageDrawable(null)
         }
+    }
+
+    private fun launchCamera() {
+        val captureImageIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+            putExtra(MediaStore.EXTRA_OUTPUT, photoUri)
+        }
+        grantUriPermissions(captureImageIntent)
+        captureImageLauncher.launch(captureImageIntent)
     }
 }
 
@@ -307,4 +400,5 @@ open class SimpleTextWatcher : TextWatcher {
 object Args {
     const val CRIME_ID = "crime_id"
     const val DIALOG_DATE = "DialogDate"
+    const val DIALOG_IMAGE_FULLSCREEN = "DialogImage"
 }
