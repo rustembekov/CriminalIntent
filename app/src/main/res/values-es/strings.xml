@@ -1,0 +1,19 @@
+<resources>
+    <string name="app_name">CriminalIntent</string>
+    <string name="crime_title_label">Título</string>
+    <string name="crime_details_label">Detalles</string>
+    <string name="crime_solved_label">Resuelto</string>
+    <string name="new_crime">Nuevo crimen</string>
+    <string name="blank_content_title">¡Ups! Nada aquí</string>
+    <string name="crime_suspect_text">Elegir sospechoso</string>
+    <string name="crime_report_text">Enviar informe del crimen</string>
+    <string name="crime_report">%1$s!
+        El crimen fue descubierto el %2$s. %3$s, y %4$s</string>
+    <string name="crime_report_solved">El caso está resuelto</string>
+    <string name="crime_report_unsolved">El caso no está resuelto</string>
+    <string name="crime_report_no_suspect">No hay sospechoso.</string>
+    <string name="crime_report_suspect">El sospechoso es %s.</string>
+    <string name="crime_report_subject">Informe de crimen de CriminalIntent</string>
+    <string name="send_report">Enviar informe del crimen vía</string>
+    <string name="crime_call_text">Llamar al sospechoso</string>
+</resources>
